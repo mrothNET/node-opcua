@@ -20,6 +20,7 @@ module.exports = function (test) {
         let client, endpointUrl;
 
         beforeEach(function (done) {
+            if (process.gc) { process.gc(); }
             client = OPCUAClient.create();
             endpointUrl = test.endpointUrl;
             done();

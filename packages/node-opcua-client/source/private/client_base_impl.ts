@@ -1187,6 +1187,7 @@ export class ClientBaseImpl extends OPCUASecureObject implements OPCUAClientBase
                                         debugLog("connection_reestablished has failed");
                                         this.disconnect(() => {
                                             //  callback(err);
+                                            console.log("Disconnected following reconnection failure", err2.message);
                                         });
                                     }
                                 });

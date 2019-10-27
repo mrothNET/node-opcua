@@ -672,6 +672,13 @@ export class ClientSecureChannelLayer extends EventEmitter {
         });
     }
 
+    public closeWithError(err: Error, callback: ErrorCallback): void {
+        if (this._transport) {
+            this._transport.prematureTerminate(err);
+        }
+        callback();
+    }
+
     private on_transaction_completed(transactionStatistics: ClientTransactionStatistics) {
         /* istanbul ignore next */
         if (doDebug && doTraceStatistics) {
@@ -823,8 +830,11 @@ export class ClientSecureChannelLayer extends EventEmitter {
          * @param err
          */
         this.emit("close", err);
-        this._cancel_pending_transactions(err);
+        this._transport.dispose();
         this._transport = null;
+        this._cancel_pending_transactions(err);
+        this._cancel_security_token_watchdog();
+        this.dispose();
     }
 
     private _on_security_token_about_to_expire() {
@@ -1189,6 +1199,8 @@ export class ClientSecureChannelLayer extends EventEmitter {
 
             } else {
                 debugLog("ClientSecureChannelLayer: Warning: securityToken hasn't been renewed -> err ", err);
+                // XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX CECHK ME !!!
+                this.closeWithError(new Error("Restarting because Request has timed out"), () => { });
             }
         });
     }
@@ -1311,6 +1323,9 @@ export class ClientSecureChannelLayer extends EventEmitter {
              * @param message_chunk {Object}  the message chunk
              */
             this.emit("timed_out_request", request);
+
+            // XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX CECHK ME !!!
+            this.closeWithError(new Error("Restarting because Request has timed out"), () => { });
 
         }, timeout);
 

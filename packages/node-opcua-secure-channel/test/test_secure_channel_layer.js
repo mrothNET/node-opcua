@@ -1,6 +1,7 @@
 "use strict";
 
 const should = require("should");
+const { promisify } = require("util");
 
 const ClientSecureChannelLayer = require("..").ClientSecureChannelLayer;
 const ServerSecureChannelLayer = require("..").ServerSecureChannelLayer;
@@ -31,9 +32,8 @@ describe("Testing ClientSecureChannel 1", function () {
         });
 
         secureChannel.create("opc.tcp://no_server_at_this_address.com:1234/UA/Sample", function (err) {
-
             should(err).be.instanceOf(Error);
-            err.message.should.match(/getaddrinfo ENOTFOUND/);
+            err.message.should.match(/getaddrinfo ENOTFOUND|EAI_AGAIN/);
             client_has_received_close_event.should.eql(0);
             setTimeout(done, 200);
         });
@@ -78,9 +78,11 @@ function startServer(holder,callback) {
     server_socket.listen(1234);
     server_socket.on("connection", function on_connection(socket) {
 
-        const serverChannel = new ServerSecureChannelLayer({});
+        const serverChannel = new ServerSecureChannelLayer({
+            timeout: 1000*1000,
+        });
         holder.serverChannel = serverChannel;
-        serverChannel.timeout = 10050;
+        serverChannel.timeout = 1000*1000;
         serverChannel.init(socket, function () {
             //xx console.log(" server channel is initialised");
         });
@@ -255,10 +257,106 @@ describe("Testing ClientSecureChannel with BackOff reconnection strategy", funct
             });
         },5000);
 
-
-
     });
 
+    async function pause(ms) {
+        await new Promise((resolve)=> setTimeout(resolve,ms));
+    }
+    let minTransactionTimeout = ClientSecureChannelLayer.minTransactionTimeout ;
+    let defaultTransactionTimeout = ClientSecureChannelLayer.defaultTransactionTimeout ;
+    beforeEach(()=> {
+        ClientSecureChannelLayer.minTransactionTimeout = 10 * 100;    // 1 sec
+        ClientSecureChannelLayer.defaultTransactionTimeout = 30 * 100; // 3 sec
+    });
+    afterEach(()=> {
+        ClientSecureChannelLayer.minTransactionTimeout = minTransactionTimeout;    // 1 sec
+        ClientSecureChannelLayer.defaultTransactionTimeout =defaultTransactionTimeout; // 6minute
+    });
+
+    it("MMM1 client SecureChannel should detect connection problem",async() => {
+
+        const options = {
+            connectionStrategy: {
+                maxRetry:     3,
+                initialDelay: 10,
+                maxDelay:     2000,
+                randomisationFactor: 0
+            },
+            defaultSecureTokenLifetime: 1000,
+            transportTimeout: 2000,
+        };
+        const secureChannel = new ClientSecureChannelLayer(options);
+
+        secureChannel.on("close",()=>{
+            console.log("On close");
+        });
+
+        const holder = {};
+        
+        await promisify(startServer)(holder);
+
+        const endpoint  = "opc.tcp://localhost:1234/UA/Sample";
+        await promisify(secureChannel.create).call(secureChannel,endpoint);
 
 
+        //-----------------------------------------------------------------
+        // let suspend the communication
+        const oldWrite = holder.serverChannel.transport.write;
+        console.log()
+        holder.serverChannel.transport.write = (chunk) => {
+            console.log("Not Writing !!!", chunk.toString("hex"));
+        };
+        //-----------------------------------------------------------------
+
+        const { ReadRequest } = require("node-opcua-types");
+        const request = new ReadRequest();
+        try {
+            const res = await promisify(secureChannel.performMessageTransaction).call(secureChannel, request);
+            console.log(res.toString());
+        } 
+        catch(err) {
+            console.log("err = ", err.message);
+        }
+
+        await pause(10000);
+
+        try {
+            console.log("xxxxxxxxxxxxxxxxx Now closing channel");
+            await promisify(secureChannel.close).call(secureChannel);
+        } 
+        catch(err) {
+            console.log("err = ", err.message);
+        }
+        await promisify(stopServer)(holder);
+ 
+    });
+    it("MMM2 testing if client SecureChannel could  sabotage itself when connection problem",async() => {
+ 
+        const options = {
+            connectionStrategy: {
+                maxRetry:     3,
+                initialDelay: 10,
+                maxDelay:     2000,
+                randomisationFactor: 0
+            },
+            defaultSecureTokenLifetime: 1000,
+            transportTimeout: 2000,
+        };
+        const secureChannel = new ClientSecureChannelLayer(options);
+
+        secureChannel.on("close",()=>{
+            console.log("On close");
+        });
+
+        const holder = {};       
+        await promisify(startServer)(holder);
+
+        const endpoint  = "opc.tcp://localhost:1234/UA/Sample";
+        await promisify(secureChannel.create).call(secureChannel,endpoint);
+
+        await promisify(secureChannel.closeWithError).call(secureChannel,new Error("Sabotage"));
+        console.log("Done ")
+        await promisify(stopServer)(holder);
+
+    });
 });
