@@ -125,9 +125,11 @@ function _dump_transaction_statistics(stats?: ServerTransactionStatistics) {
     if (stats) {
         console.log("                Bytes Read : ", stats.bytesRead);
         console.log("             Bytes Written : ", stats.bytesWritten);
-        console.log("   time to receive request : ", stats.lap_reception / 1000, " sec");
-        console.log("   time to process request : ", stats.lap_processing / 1000, " sec");
-        console.log("   time to send response   : ", stats.lap_emission / 1000, " sec");
+        if (doPerfMonitoring) {
+            console.log("   time to receive request : ", stats.lap_reception / 1000, " sec");
+            console.log("   time to process request : ", stats.lap_processing / 1000, " sec");
+            console.log("   time to send response   : ", stats.lap_emission / 1000, " sec");
+        }
     }
 }
 

@@ -165,11 +165,14 @@ function _dump_transaction_statistics(stats: ClientTransactionStatistics) {
         stats.response.responseHeader.serviceResult.toString());
     console.log("   Bytes Read                : ", w(stats.bytesRead), " bytes");
     console.log("   Bytes Written             : ", w(stats.bytesWritten), " bytes");
-    console.log("   transaction duration      : ", w(stats.lap_transaction.toFixed(3)), " milliseconds");
-    console.log("   time to send request      : ", w((stats.lap_sending_request).toFixed(3)), " milliseconds");
-    console.log("   time waiting for response : ", w((stats.lap_waiting_response).toFixed(3)), " milliseconds");
-    console.log("   time to receive response  : ", w((stats.lap_receiving_response).toFixed(3)), " milliseconds");
-    console.log("   time processing response  : ", w((stats.lap_processing_response).toFixed(3)), " milliseconds");
+    if (doPerfMonitoring) {
+        console.log("   transaction duration      : ", w(stats.lap_transaction.toFixed(3)), " milliseconds");
+        console.log("   time to send request      : ", w((stats.lap_sending_request).toFixed(3)), " milliseconds");
+        console.log("   time waiting for response : ", w((stats.lap_waiting_response).toFixed(3)), " milliseconds");
+        console.log("   time to receive response  : ", w((stats.lap_receiving_response).toFixed(3)), " milliseconds");
+        console.log("   time processing response  : ", w((stats.lap_processing_response).toFixed(3)), " milliseconds");
+
+    }
     console.log(chalk.green.bold("---------------------------------------------------------------------<< Stats"));
 
 }
@@ -405,7 +408,7 @@ export class ClientSecureChannelLayer extends EventEmitter {
                 if (!requestData) {
                     requestData = this._requests[requestId + 1];
                     if (doTraceRequestContent) {
-                        debugLog(" message was 2:", requestData ? requestData.request.toString() : "<null>");
+                        console.log(" message was 2:", requestData ? requestData.request.toString() : "<null>");
                     }
                 }
                 // xx console.log(request_data.request.toString());
@@ -681,7 +684,7 @@ export class ClientSecureChannelLayer extends EventEmitter {
 
     private on_transaction_completed(transactionStatistics: ClientTransactionStatistics) {
         /* istanbul ignore next */
-        if (doDebug && doTraceStatistics) {
+        if (doTraceStatistics) {
             // dump some statistics about transaction ( time and sizes )
             _dump_transaction_statistics(transactionStatistics);
         }
@@ -1274,9 +1277,9 @@ export class ClientSecureChannelLayer extends EventEmitter {
                     request.requestHeader.requestHandle,
                     (response ? response.constructor.name : "null"), "err=", (err ? err.message : "null"),
                     "securityTokenId=", this.securityToken ? this.securityToken!.tokenId : "x");
-                if (response && doTraceResponseContent) {
-                    debugLog(response.toString());
-                }
+            }
+            if (response && doTraceResponseContent) {
+                console.log(response.toString());
             }
 
             if (!localCallback) {
@@ -1585,7 +1588,7 @@ export class ClientSecureChannelLayer extends EventEmitter {
                 " channel id ", this.channelId,
                 " securityToken=", this.securityToken! ? this.securityToken!.tokenId : "x");
             if (doTraceRequestContent) {
-                debugLog(request.toString());
+                console.log(request.toString());
             }
         }
 
